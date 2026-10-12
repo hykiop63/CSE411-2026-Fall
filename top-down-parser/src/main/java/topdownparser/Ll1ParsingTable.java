@@ -37,7 +37,44 @@ public final class Ll1ParsingTable {
   /** Constructs the complete table, including conflicting cells when they exist. */
   public static Ll1ParsingTable build(final Grammar grammar) {
     // TODO: Complete this method
-    return null; // TODO: replace the return value.
+    Map<String, Set<String>> first = initialSets(grammar);
+    Map<String, Set<String>> follow = initialSets(grammar);
+    for(boolean changed = true;changed;){     //firstset
+      changed = false;
+      for(Production p : grammar.getProductions()){
+        Set<String> f = firstOfSequence(p.getRightHandSide(), grammar, first);
+        if (first.get(p.getLeftHandSide()).addAll(f)) changed = true;
+      }
+    }
+    follow.get(grammar.getStartSymbol()).add(Grammar.END_MARKER);
+    for(boolean changed = true;changed;){   //follow set
+      changed = false;
+      for(Production p : grammar.getProductions()){
+        String A = p.getLeftHandSide();
+        List<String> rhs = p.getRightHandSide();
+        for (int i = 0; i < rhs.size(); i++) {
+          String B = rhs.get(i);
+          if (!grammar.getNonterminals().contains(B)) continue;
+          Set<String> firstBeta = firstOfSequence(rhs.subList(i + 1, rhs.size()), grammar, first);
+          if (addWithoutEpsilon(follow.get(B), firstBeta)) changed = true;
+          if (firstBeta.contains(Grammar.EPSILON) && follow.get(B).addAll(follow.get(A))) changed = true;
+        }
+      }
+    }
+
+    Map<String, Map<String, List<Production>>> cells = new LinkedHashMap<String, Map<String, List<Production>>>();
+    for (String t : grammar.getNonterminals()) cells.put(t, new LinkedHashMap<String, List<Production>>());
+    for(Production p : grammar.getProductions()){
+      String A = p.getLeftHandSide();
+      List<String> alpha = p.getRightHandSide();
+      Set<String> firstAlpha = firstOfSequence(alpha, grammar, first);
+      Set<String> followA = follow.get(A);
+      for(String t : firstAlpha){
+        if (t.equals(Grammar.EPSILON)) for(String f : followA) add(cells,A,f,p);
+        else add(cells, A, t, p);
+      }
+    }
+    return new Ll1ParsingTable(grammar, first, follow, cells); // TODO: replace the return value.
   }
 
   public Grammar getGrammar() {
