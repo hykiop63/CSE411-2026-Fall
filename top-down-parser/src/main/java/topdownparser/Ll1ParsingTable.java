@@ -36,45 +36,60 @@ public final class Ll1ParsingTable {
 
   /** Constructs the complete table, including conflicting cells when they exist. */
   public static Ll1ParsingTable build(final Grammar grammar) {
-    // TODO: Complete this method
-    Map<String, Set<String>> first = initialSets(grammar);
-    Map<String, Set<String>> follow = initialSets(grammar);
-    for(boolean changed = true;changed;){     //firstset
-      changed = false;
-      for(Production p : grammar.getProductions()){
-        Set<String> f = firstOfSequence(p.getRightHandSide(), grammar, first);
-        if (first.get(p.getLeftHandSide()).addAll(f)) changed = true;
-      }
+    if (grammar == null) {
+      throw new IllegalArgumentException("grammar must not be null");
     }
-    follow.get(grammar.getStartSymbol()).add(Grammar.END_MARKER);
-    for(boolean changed = true;changed;){   //follow set
+    final Map<String, Set<String>> first = initialSets(grammar);
+    boolean changed;
+    do {
       changed = false;
-      for(Production p : grammar.getProductions()){
-        String A = p.getLeftHandSide();
-        List<String> rhs = p.getRightHandSide();
-        for (int i = 0; i < rhs.size(); i++) {
-          String B = rhs.get(i);
-          if (!grammar.getNonterminals().contains(B)) continue;
-          Set<String> firstBeta = firstOfSequence(rhs.subList(i + 1, rhs.size()), grammar, first);
-          if (addWithoutEpsilon(follow.get(B), firstBeta)) changed = true;
-          if (firstBeta.contains(Grammar.EPSILON) && follow.get(B).addAll(follow.get(A))) changed = true;
+      for (final Production production : grammar.getProductions()) {
+        changed |= first.get(production.getLeftHandSide()).addAll(
+            firstOfSequence(production.getRightHandSide(), grammar, first));
+      }
+    } while (changed);
+
+    final Map<String, Set<String>> follow = initialSets(grammar);
+    follow.get(grammar.getStartSymbol()).add(Grammar.END_MARKER);
+    do {
+      changed = false;
+      for (final Production production : grammar.getProductions()) {
+        final List<String> right = production.getRightHandSide();
+        for (int i = 0; i < right.size(); i++) {
+          final String symbol = right.get(i);
+          if (!grammar.getNonterminals().contains(symbol)) {
+            continue;
+          }
+          final Set<String> suffixFirst = firstOfSequence(right.subList(i + 1, right.size()),
+              grammar, first);
+          changed |= addWithoutEpsilon(follow.get(symbol), suffixFirst);
+          if (suffixFirst.contains(Grammar.EPSILON)) {
+            changed |= follow.get(symbol).addAll(follow.get(production.getLeftHandSide()));
+          }
+        }
+      }
+    } while (changed);
+
+    final Map<String, Map<String, List<Production>>> cells =
+        new LinkedHashMap<String, Map<String, List<Production>>>();
+    for (final String nonterminal : grammar.getNonterminals()) {
+      cells.put(nonterminal, new LinkedHashMap<String, List<Production>>());
+    }
+    for (final Production production : grammar.getProductions()) {
+      final Set<String> productionFirst = firstOfSequence(production.getRightHandSide(), grammar,
+          first);
+      for (final String terminal : productionFirst) {
+        if (!Grammar.EPSILON.equals(terminal)) {
+          add(cells, production.getLeftHandSide(), terminal, production);
+        }
+      }
+      if (productionFirst.contains(Grammar.EPSILON)) {
+        for (final String terminal : follow.get(production.getLeftHandSide())) {
+          add(cells, production.getLeftHandSide(), terminal, production);
         }
       }
     }
-
-    Map<String, Map<String, List<Production>>> cells = new LinkedHashMap<String, Map<String, List<Production>>>();
-    for (String t : grammar.getNonterminals()) cells.put(t, new LinkedHashMap<String, List<Production>>());
-    for(Production p : grammar.getProductions()){
-      String A = p.getLeftHandSide();
-      List<String> alpha = p.getRightHandSide();
-      Set<String> firstAlpha = firstOfSequence(alpha, grammar, first);
-      Set<String> followA = follow.get(A);
-      for(String t : firstAlpha){
-        if (t.equals(Grammar.EPSILON)) for(String f : followA) add(cells,A,f,p);
-        else add(cells, A, t, p);
-      }
-    }
-    return new Ll1ParsingTable(grammar, first, follow, cells); // TODO: replace the return value.
+    return new Ll1ParsingTable(grammar, first, follow, cells);
   }
 
   public Grammar getGrammar() {
