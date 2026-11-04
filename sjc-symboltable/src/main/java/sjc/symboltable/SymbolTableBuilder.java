@@ -116,31 +116,53 @@ public class SymbolTableBuilder {
 
     @Override
     public boolean visit(final FieldDeclaration node) {
-      // TODO
+      // TODO ex). class A{public int x;}
+      final VariableDeclarationFragment vdf =(VariableDeclarationFragment) node.fragments().get(0);
+      final String name = vdf.getName().getIdentifier();
+      this.fieldMap.put(new Pair<>(this.className, name), node);
       return false;
     }
 
     @Override
     public boolean visit(final MethodDeclaration node) {
-      // TODO
+      // TODO ex). static int factorial(int n) { ... }
+      for (final Object o : node.parameters()) {
+        final SingleVariableDeclaration svd = (SingleVariableDeclaration) o;
+        final String name = svd.getName().getIdentifier();
+        this.localNames.add(name);
+        this.nameMap.put(name, svd);
+      }
+      node.getBody().accept(this);
       return false;
     }
 
     @Override
     public boolean visit(final MethodInvocation node) {
-      // TODO
+      // TODO ex). A.factorial(5)
+      final MethodDeclaration md = this.methodMap.get(node.getName().getIdentifier());
+      if (md != null) 
+        this.result.put(node, md);
+      for (final Object o : node.arguments()) {
+        ((ASTNode) o).accept(this);
+      }
       return false;
     }
 
     @Override
     public boolean visit(final SimpleName node) {
-      // TODO
+      // TODO ex). result
+      final ASTNode n = this.nameMap.get(node.getIdentifier());
+      if(n!=null) this.result.put(node,n);
       return false;
     }
 
     @Override
     public boolean visit(final VariableDeclarationStatement node) {
-      // TODO
+      // TODO, ex). int result;
+      final VariableDeclarationFragment vdf = (VariableDeclarationFragment) node.fragments().get(0);
+      final String name = vdf.getName().getIdentifier();
+      this.localNames.add(name);
+      this.nameMap.put(name, node);
       return false;
     }
 
@@ -177,7 +199,14 @@ public class SymbolTableBuilder {
 
     @Override
     public boolean visit(final TypeDeclaration node) {
-      // TODO
+      // TODO ex).class A
+      this.className = node.getName().getIdentifier();
+      if (!hasPublicModifier(node.modifiers()))
+        this.classMap.put(this.className, node);
+      for (final MethodDeclaration md : node.getMethods())
+        this.methodMap.put(md.getName().getIdentifier(),md);
+      for(final Object o : node.bodyDeclarations())
+        ((ASTNode) o).accept(this); 
       return false;
     }
   }
